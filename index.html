@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telemetry Dashboard - Smart Irrigation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg-principal: #09090b;
+    --bg-card: #141416;
+    --borda: #27272a;
+    --texto-principal: #f4f4f5;
+    --texto-secundario: #a1a1aa;
+    
+
+    --bomba-on: #ef4444;
+    --bomba-off: #3f3f46;
+    --conexao-ok: #10b981;
+    --conexao-erro: #f43f5e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-principal);
+    color: var(--texto-principal);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 24px;
+    letter-spacing: -0.02em;
+    transition: background 0.3s ease;
+  }
+
+  body.alarme-disparado {
+    animation: alert-flash-bg 1.5s infinite;
+  }
+
+  @keyframes alert-flash-bg {
+    0% { background: #09090b; }
+    50% { background: #2d0606; }
+    100% { background: #09090b; }
+  }
+
+  .container {
+    max-width: 1000px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--borda);
+    padding-bottom: 24px;
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
+  header p {
+    font-size: 0.875rem;
+    color: var(--texto-secundario);
+    margin-top: 4px;
+  }
+
+  .status-wrapper {
+    display: flex;
+    gap: 12px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .alarm-badge {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: #450a0a;
+    border: 1px solid #991b1b;
+    color: #ef4444;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    animation: pulse-pump 1s infinite;
+  }
+
+  .indicator-dot {
+    width: 8px;
+    height: 8px;
+    background: #52525b;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+  }
+  .indicator-dot.connected { background: var(--conexao-ok); box-shadow: 0 0 12px var(--conexao-ok); }
+  .indicator-dot.error { background: var(--conexao-erro); box-shadow: 0 0 12px var(--conexao-erro); }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--texto-secundario);
+    margin-bottom: 16px;
+  }
+
+  .metric-display {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 20px;
+  }
+
+  .metric-value {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--texto-principal);
+  }
+
+  .metric-unit {
+    font-size: 1.25rem;
+    color: var(--texto-secundario);
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: #27272a;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--conexao-ok);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .pump-status-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .pump-icon-container {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: #27272a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    transition: all 0.3s ease;
+  }
+
+  .pump-active .pump-icon-container {
+    background: #450a0a;
+    border-color: #991b1b;
+    color: #ef4444;
+    animation: pulse-pump 2s infinite;
+  }
+
+  @keyframes pulse-pump {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  .pump-details { display: flex; flex-direction: column; }
+  .pump-state-text { font-size: 1.5rem; font-weight: 600; }
+  .pump-subtext { font-size: 0.8rem; color: var(--texto-secundario); }
+
+
+  .control-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: auto;
+  }
+
+  .btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid var(--borda);
+    transition: all 0.2s ease;
+    background: #27272a;
+    color: var(--texto-principal);
+  }
+
+  .btn-on:hover { background: #15803d; border-color: #22c55e; color: white; box-shadow: 0 0 12px rgba(34,197,94,0.2); }
+  .btn-off:hover { background: #991b1b; border-color: #ef4444; color: white; box-shadow: 0 0 12px rgba(239,68,68,0.2); }
+  .btn:active { transform: scale(0.98); }
+
+  .console-section {
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .console-header h3 { font-size: 0.9rem; font-weight: 600; }
+  .console-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    background: #27272a;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--texto-secundario);
+  }
+
+  .console-output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    list-style: none;
+    max-height: 150px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #d4d4d8;
+  }
+
+  .console-output li {
+    padding: 8px 12px;
+    background: #09090b;
+    border-radius: 6px;
+    border-left: 3px solid #3f3f46;
+  }
+
+  .console-output li.log-active { border-left-color: var(--bomba-on); color: #fca5a5; }
+  .console-output li.log-inactive { border-left-color: var(--conexao-ok); color: #a7f3d0; }
+  .console-output li.log-alarm { border-left-color: #f59e0b; color: #fef08a; background: #2d1a06; }
+</style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>Módulo de Telemetria</h1>
+        <p>Sistema de Irrigação Automatizado • v3.0 Control</p>
+      </div>
+      <div class="status-wrapper">
+        <div id="alarm-badge" class="alarm-badge">⚠️ CRITICAL ALARM</div>
+        <div class="status-badge">
+          <div id="dot" class="indicator-dot"></div>
+          <span id="status-texto">INICIALIZANDO</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <div class="card">
+        <h2>Humidade do Solo</h2>
+        <div class="metric-display">
+          <span class="metric-value" id="valor-umidade">0</span>
+          <span class="metric-unit">%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar" id="barra-umidade"></div>
+        </div>
+      </div>
+
+      <div class="card" id="card-bomba">
+        <h2>Atuador • Bomba de Água</h2>
+        <div class="pump-status-wrapper">
+          <div class="pump-icon-container" id="bomba-icone">⏻</div>
+          <div class="pump-details">
+            <span class="pump-state-text" id="status-bomba">STBY</span>
+            <span class="pump-subtext" id="bomba-subtexto">Aguardando telemetria...</span>
+          </div>
+        </div>
+        
+        <div class="control-actions">
+          <button class="btn btn-on" onclick="enviarComando('LIGAR')">LIGAR</button>
+          <button class="btn btn-off" onclick="enviarComando('DESLIGAR')">DESLIGAR</button>
+        </div>
+      </div>
+    </main>
+
+    <section class="console-section">
+      <div class="console-header">
+        <h3>Histórico do Sistema</h3>
+        <span class="console-badge">LIVE FEED</span>
+      </div>
+      <ul class="console-output" id="lista-logs">
+        <li>[SYSTEM] Subsistema de monitoramento online. Pronto para comandos...</li>
+      </ul>
+    </section>
+  </div>
+
+  <script>
+    let ultimaBomba = null;
+    let alarmeAtivo = false;
+
+
+    function tocarSomAlarme() {
+      if (!alarmeAtivo) return;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // Som agudo de bip
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
+      
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    }
+
+
+    setInterval(tocarSomAlarme, 1500);
+
+    function adicionarLog(mensagem, tipo = '') {
+      const lista = document.getElementById('lista-logs');
+      const item = document.createElement('li');
+      const agora = new Date().toLocaleTimeString();
+      item.textContent = `[${agora}] ${mensagem}`;
+      
+      if (tipo === 'alarm' || mensagem.includes('CRÍTICA')) item.className = 'log-alarm';
+      else if (mensagem.includes('LIGADA') || mensagem.includes('EXEC:')) item.className = 'log-active';
+      else if (mensagem.includes('DESLIGADA')) item.className = 'log-inactive';
+
+      lista.insertBefore(item, lista.firstChild);
+    }
+
+    async function enviarComando(acao) {
+      adicionarLog(`USER_ACTION: Solicitando comando [${acao}]...`);
+      try {
+        const res = await fetch(`http://127.0.0.1:8765/bomba?comando=${acao.toLowerCase()}`, { method: 'POST' });
+        const dados = await res.json();
+        if(dados.sucesso) {
+          adicionarLog(`EXEC: Comando [${acao}] executado no Arduino!`);
+        }
+      } catch (e) {
+        adicionarLog(`ERROR: Falha ao enviar comando para o servidor Python`, 'alarm');
+      }
+    }
+
+    function atualizarUI(dados) {
+      const umidade = dados.umidade ?? 0;
+      document.getElementById('valor-umidade').textContent = umidade;
+      
+      const barra = document.getElementById('barra-umidade');
+      barra.style.width = `${umidade}%`;
+
+
+      const alarmBadge = document.getElementById('alarm-badge');
+      if (umidade < 30) {
+        barra.style.background = '#f43f5e';
+        document.body.classList.add('alarme-disparado');
+        alarmBadge.style.display = 'inline-flex';
+        if (!alarmeAtivo) {
+          adicionarLog(`⚡ ALERTA: Solo em estado de estresse hídrico severo!`, 'alarm');
+          alarmeAtivo = true;
+        }
+      } else {
+        document.body.classList.remove('alarme-disparado');
+        alarmBadge.style.display = 'none';
+        alarmeAtivo = false;
+        
+        if (umidade >= 30 && umidade < 60) barra.style.background = '#eab308';
+        else barra.style.background = '#10b981';
+      }
+
+
+      const cardBomba = document.getElementById('card-bomba');
+      const bombaIcone = document.getElementById('bomba-icone');
+      const statusBomba = document.getElementById('status-bomba');
+      const bombaSubtexto = document.getElementById('bomba-subtexto');
+      
+      if (dados.bomba === true || dados.bomba === "true") {
+        cardBomba.className = 'card pump-active';
+        bombaIcone.textContent = '💧';
+        statusBomba.textContent = 'ACTIVE';
+        bombaSubtexto.textContent = 'Injetando fluxo de água';
+      } else {
+        cardBomba.className = 'card';
+        bombaIcone.textContent = '⏻';
+        statusBomba.textContent = 'STBY';
+        bombaSubtexto.textContent = 'Solo em nível seguro';
+      }
+
+      const dot = document.getElementById('dot');
+      const statusTexto = document.getElementById('status-texto');
+      if (dados.status === 'Conectado' || dados.modo) {
+        dot.className = 'indicator-dot connected';
+        statusTexto.textContent = 'ONLINE';
+        statusTexto.style.color = 'var(--conexao-ok)';
+      } else {
+        dot.className = 'indicator-dot';
+        statusTexto.textContent = 'OFFLINE';
+      }
+    }
+
+    async function buscarDados() {
+      try {
+        const res = await fetch('http://127.0.0.1:8765/dados');
+        const dados = await res.json();
+        atualizarUI(dados);
+
+        if (ultimaBomba !== dados.bomba) {
+          adicionarLog(dados.bomba
+            ? `SYS_EVENT: Bomba LIGADA — Solo detectado com (${dados.umidade}%)`
+            : `SYS_EVENT: Bomba DESLIGADA — Nível estabilizado em (${dados.umidade}%)`
+          );
+          ultimaBomba = dados.bomba;
+        }
+      } catch (e) {
+        document.getElementById('dot').className = 'indicator-dot error';
+        document.getElementById('status-texto').textContent = 'ERR_CONNECTION';
+      }
+    }
+
+    setInterval(buscarDados, 500);
+  </script>
+</body>
+</html>
