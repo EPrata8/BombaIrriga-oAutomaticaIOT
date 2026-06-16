@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telemetry Dashboard - Smart Irrigation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&family=JetBrains+Mono:wght=400;500&display=swap');
+
+  :root {
+    --bg-principal: #09090b;
+    --bg-card: #141416;
+    --borda: #27272a;
+    --texto-principal: #f4f4f5;
+    --texto-secundario: #a1a1aa;
+    
+    --bomba-on: #ef4444;
+    --bomba-off: #3f3f46;
+    --conexao-ok: #10b981;
+    --conexao-erro: #f43f5e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-principal);
+    color: var(--texto-principal);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 24px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1000px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 38px;
+    border-bottom: 1px solid var(--borda);
+    padding-bottom: 24px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.05em;
+  }
+
+  .status-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-badge {
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    padding: 6px 14px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .indicator-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--conexao-erro);
+    border-radius: 50%;
+  }
+
+  .indicator-dot.connected {
+    background: var(--conexao-ok);
+    box-shadow: 0 0 12px var(--conexao-ok);
+  }
+
+  .alarm-badge {
+    background: rgba(244, 63, 94, 0.1);
+    border: 1px solid var(--conexao-erro);
+    color: var(--conexao-erro);
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: none;
+  }
+
+  .grid-painel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--texto-secundario);
+    font-weight: 500;
+  }
+
+  .card-icon {
+    font-size: 1.25rem;
+    color: var(--texto-secundario);
+  }
+
+  .valor-grande {
+    font-size: 3.5rem;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    margin-bottom: 8px;
+  }
+
+  .subtexto {
+    font-size: 0.85rem;
+    color: var(--texto-secundario);
+  }
+
+  .barra-progresso-container {
+    width: 100%;
+    height: 6px;
+    background: var(--borda);
+    border-radius: 9999px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+
+  .barra-progresso {
+    height: 100%;
+    width: 0%;
+    background: var(--texto-principal);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card.active-pump {
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .card.active-pump .card-icon {
+    color: var(--bomba-on);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+  }
+
+  .card-logs {
+    background: var(--bg-card);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .log-terminal {
+    background: #000000;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 16px;
+    height: 180px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: #e4e4e7;
+    line-height: 1.6;
+  }
+
+  .log-linha {
+    margin-bottom: 4px;
+    border-left: 2px solid #3f3f46;
+    padding-left: 8px;
+  }
+
+  .log-linha.alarm {
+    border-color: var(--conexao-erro);
+    color: #fca5a5;
+  }
+
+  .control-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .btn {
+    flex: 1;
+    background: #18181b;
+    border: 1px solid var(--borda);
+    color: var(--texto-principal);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: #27272a;
+    border-color: #3f3f46;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--bomba-on);
+    color: var(--bomba-on);
+  }
+
+  .btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>AGROCONTROL <span style="font-weight:300; font-size:0.9rem; color:var(--texto-secundario);">// Node-01</span></h1>
+    <div class="status-wrapper">
+      
+      <div class="status-badge" style="gap: 6px;">
+        <span style="color: var(--texto-secundario); font-size: 0.75rem;">MODO:</span>
+        <select id="seletor-modo" onchange="alterarModo(this.value)" style="background: #27272a; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-weight: 600; cursor: pointer;">
+          <option value="auto">AUTO</option>
+          <option value="manual">MANUAL</option>
+        </select>
+      </div>
+
+      <div id="alarm-badge" class="alarm-badge">⚠️ CRITICAL ALARM</div>
+      <div class="status-badge">
+        <div id="dot" class="indicator-dot"></div>
+        <span id="status-texto">INICIALIZANDO</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid-painel">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Sensor de Umidade</span>
+        <span class="card-icon">💧</span>
+      </div>
+      <div id="umidade-valor" class="valor-grande">0%</div>
+      <div id="umidade-subtexto" class="subtexto">Efetuando leitura analógica...</div>
+      <div class="barra-progresso-container">
+        <div id="umidade-barra" class="barra-progresso"></div>
+      </div>
+    </div>
+
+    <div id="card-bomba" class="card">
+      <div class="card-header">
+        <span class="card-title">Atuador (Bomba d'Água)</span>
+        <span id="bomba-icone" class="card-icon">⏻</span>
+      </div>
+      <div id="status-bomba" class="valor-grande" style="font-size: 2.8rem; margin-top: 10px; margin-bottom: 14px;">STBY</div>
+      <div id="bomba-subtexto" class="subtexto">Aguardando telemetria...</div>
+      
+      <div class="control-actions">
+        <button class="btn" onclick="enviarComando('LIGAR')" id="btn-ligar">FORÇAR LIGAR</button>
+        <button class="btn btn-danger" onclick="enviarComando('DESLIGAR')" id="btn-desligar">DESLIGAR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-logs">
+    <div class="card-header" style="margin-bottom: 12px;">
+      <span class="card-title">Console de Eventos do Sistema</span>
+    </div>
+    <div id="terminal" class="log-terminal"></div>
+  </div>
+</div>
+
+<script>
+    let ultimaBomba = null;
+    let bloqueioSeletor = false; // Impede que o auto-refresh sobrescreva sua escolha imediatamente
+
+    function adicionarLog(mensagem, tipo = 'normal') {
+      const t = document.getElementById('terminal');
+      const agora = new Date().toLocaleTimeString();
+      const linha = document.createElement('div');
+      linha.className = `log-linha ${tipo}`;
+      linha.textContent = `[${agora}] ${mensagem}`;
+      t.appendChild(linha);
+      t.scrollTop = t.scrollHeight;
+    }
+
+    // Altera o modo operacional diretamente na API do Python
+    async function alterarModo(modo) {
+      bloqueioSeletor = true; // Trava a atualização visual por 1.5s
+      adicionarLog(`SYS: Alterando modo de operação para [${modo.toUpperCase()}]...`);
+      try {
+        await fetch(`http://127.0.0.1:8765/modo?tipo=${modo}`, { 
+            method: 'POST',
+            mode: 'cors'
+        });
+        // Libera o seletor após o Python ter tempo de processar
+        setTimeout(() => { bloqueioSeletor = false; }, 1500); 
+      } catch (e) {
+        adicionarLog(`ERROR: Falha ao sincronizar o modo com o servidor`, 'alarm');
+        bloqueioSeletor = false;
+      }
+    }
+
+    // Envia ordens manuais para a bomba
+    async function enviarComando(acao) {
+      adicionarLog(`USER_ACTION: Solicitando comando [${acao}]...`);
+      try {
+        const res = await fetch(`http://127.0.0.1:8765/bomba?comando=${acao.toLowerCase()}`, { 
+          method: 'POST',
+          mode: 'cors'
+        });
+        
+        if (res.ok) {
+          const dados = await res.json();
+          if(dados.sucesso) {
+            adicionarLog(`EXEC: Comando [${acao}] despachado com sucesso para o Python!`);
+          } else {
+            adicionarLog(`WARN: Comando recusado pelo Python (o sistema pode não estar em MANUAL).`);
+          }
+        }
+      } catch (e) {
+        adicionarLog(`ERROR: Falha ao comunicar comando com o servidor Python`, 'alarm');
+      }
+    }
+
+    function atualizarUI(dados) {
+      // Atualiza valores de umidade
+      document.getElementById('umidade-valor').textContent = `${dados.umidade}%`;
+      document.getElementById('umidade-barra').style.width = `${dados.umidade}%`;
+
+      if(dados.umidade < 30) {
+        document.getElementById('umidade-subtexto').textContent = 'Alerta: Solo Seco Crítico!';
+        document.getElementById('alarm-badge').style.display = 'block';
+      } else {
+        document.getElementById('umidade-subtexto').textContent = 'Nível de umidade ideal para o plantio.';
+        document.getElementById('alarm-badge').style.display = 'none';
+      }
+
+      // Atualiza estado visual do card da bomba
+      const cardBomba = document.getElementById('card-bomba');
+      const bombaIcone = document.getElementById('bomba-icone');
+      const statusBomba = document.getElementById('status-bomba');
+      const bombaSubtexto = document.getElementById('bomba-subtexto');
+
+      if (dados.bomba) {
+        cardBomba.className = 'card active-pump';
+        bombaIcone.textContent = '💧';
+        statusBomba.textContent = 'ACTIVE';
+      } else {
+        cardBomba.className = 'card';
+        bombaIcone.textContent = '⏻';
+        statusBomba.textContent = 'STBY';
+      }
+
+      // Atualiza o estado das conexões
+      const dot = document.getElementById('dot');
+      const statusTexto = document.getElementById('status-texto');
+      
+      if (dados.status === 'Conectado') {
+        dot.className = 'indicator-dot connected';
+        statusTexto.textContent = 'ONLINE';
+        statusTexto.style.color = 'var(--conexao-ok)';
+      } else {
+        dot.className = 'indicator-dot';
+        statusTexto.textContent = 'OFFLINE';
+        statusTexto.style.color = 'var(--conexao-erro)';
+      }
+
+      // Sincroniza e gerencia os botões baseado no Modo
+      if (dados.modo) {
+        // Só atualiza o dropdown se o usuário não tiver acabado de clicar nele
+        if (!bloqueioSeletor) {
+            document.getElementById('seletor-modo').value = dados.modo;
+        }
+        
+        const btnLigar = document.getElementById('btn-ligar');
+        const btnDesligar = document.getElementById('btn-desligar');
+
+        if (dados.modo === 'auto') {
+          btnLigar.disabled = true;
+          btnDesligar.disabled = true;
+          bombaSubtexto.textContent = dados.bomba ? "Irrigando automaticamente..." : "Solo seguro • Automático";
+        } else {
+          btnLigar.disabled = false;
+          btnDesligar.disabled = false;
+          bombaSubtexto.textContent = dados.bomba ? "Forçado manualmente" : "Desligado manualmente";
+        }
+      }
+    }
+
+    async function buscarDados() {
+      try {
+        const res = await fetch('http://127.0.0.1:8765/dados');
+        const dados = await res.json();
+        atualizarUI(dados);
+
+        if (ultimaBomba !== dados.bomba) {
+          adicionarLog(dados.bomba
+            ? `SYS_EVENT: Bomba LIGADA — Sensor em (${dados.umidade}%)`
+            : `SYS_EVENT: Bomba DESLIGADA — Nível estabilizado em (${dados.umidade}%)`
+          );
+          ultimaBomba = dados.bomba;
+        }
+      } catch (e) {
+        document.getElementById('dot').className = 'indicator-dot';
+        document.getElementById('status-texto').textContent = 'OFFLINE';
+        document.getElementById('status-texto').style.color = 'var(--conexao-erro)';
+      }
+    }
+
+    adicionarLog("SYS: Painel de telemetria inicializado. Aguardando conexão...");
+    setInterval(buscarDados, 1000);
+</script>
+</body>
+</html>
